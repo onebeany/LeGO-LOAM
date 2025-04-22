@@ -50,7 +50,7 @@ using namespace std;
 
 typedef pcl::PointXYZI  PointType;
 
-extern const string pointCloudTopic = "/velodyne_points";
+extern const string pointCloudTopic = "/ml_/pointcloud";
 extern const string imuTopic = "/imu/data";
 
 // Save pcd
@@ -59,13 +59,21 @@ extern const string fileDirectory = "/tmp/";
 // Using velodyne cloud "ring" channel for image projection (other lidar may have different name for this channel, change "PointXYZIR" below)
 extern const bool useCloudRing = true; // if true, ang_res_y and ang_bottom are not used
 
+// ML-X 120
+extern const int N_SCAN = 56;  // 35° / 0.625°
+extern const int Horizon_SCAN = 574;  // 120° / 0.209°
+extern const float ang_res_x = 0.209;
+extern const float ang_res_y = 0.625;
+extern const float ang_bottom = 17.5;  // half of 35°
+extern const int groundScanInd = 28;  // half of N_SCAN
+
 // VLP-16
-extern const int N_SCAN = 16;
-extern const int Horizon_SCAN = 1800;
-extern const float ang_res_x = 0.2;
-extern const float ang_res_y = 2.0;
-extern const float ang_bottom = 15.0+0.1;
-extern const int groundScanInd = 7;
+// extern const int N_SCAN = 16;
+// extern const int Horizon_SCAN = 1800;
+// extern const float ang_res_x = 0.2;
+// extern const float ang_res_y = 2.0;
+// extern const float ang_bottom = 15.0+0.1;
+// extern const int groundScanInd = 7;
 
 // HDL-32E
 // extern const int N_SCAN = 32;
@@ -111,8 +119,8 @@ extern const int imuQueLength = 200;
 extern const float sensorMinimumRange = 1.0;
 extern const float sensorMountAngle = 0.0;
 extern const float segmentTheta = 60.0/180.0*M_PI; // decrese this value may improve accuracy
-extern const int segmentValidPointNum = 5;
-extern const int segmentValidLineNum = 3;
+extern const int segmentValidPointNum = 4;
+extern const int segmentValidLineNum = 2;
 extern const float segmentAlphaX = ang_res_x / 180.0 * M_PI;
 extern const float segmentAlphaY = ang_res_y / 180.0 * M_PI;
 
@@ -120,8 +128,8 @@ extern const float segmentAlphaY = ang_res_y / 180.0 * M_PI;
 extern const int edgeFeatureNum = 2;
 extern const int surfFeatureNum = 4;
 extern const int sectionsTotal = 6;
-extern const float edgeThreshold = 0.1;
-extern const float surfThreshold = 0.1;
+extern const float edgeThreshold = 0.3;
+extern const float surfThreshold = 0.3;
 extern const float nearestFeatureSearchSqDist = 25;
 
 

@@ -160,6 +160,68 @@ public:
 
     ~ImageProjection(){}
 
+	void copyPointCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg){
+        cloudHeader = laserCloudMsg->header;
+        
+        // 포인트 클라우드에 intensity 또는 color 정보가 있는지 확인
+        bool hasIntensity = false;
+        bool hasRGB = false;
+        for (const auto& field : laserCloudMsg->fields) {
+            if (field.name == "intensity") {
+                hasIntensity = true;
+            } else if (field.name == "rgb" || field.name == "rgba") {
+                hasRGB = true;
+            }
+        }
+        
+        if (hasIntensity) {
+            // intensity 정보가 있으면 직접 PointXYZI로 변환
+            pcl::fromROSMsg(*laserCloudMsg, *laserCloudIn);
+        } else if (hasRGB) {
+            // RGB 정보가 있으면 PointXYZRGB로 변환
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr laserCloudRGB(new pcl::PointCloud<pcl::PointXYZRGB>());
+            pcl::fromROSMsg(*laserCloudMsg, *laserCloudRGB);
+            
+            // RGB를 intensity로 변환
+            laserCloudIn->clear();
+            for (const auto& point : laserCloudRGB->points) {
+                pcl::PointXYZI pointI;
+                pointI.x = point.x;
+                pointI.y = point.y;
+                pointI.z = point.z;
+                
+                // RGB 값 추출
+                uint32_t rgb = *reinterpret_cast<const uint32_t*>(&point.rgb);
+                uint8_t r = (rgb >> 16) & 0x0000ff;
+                uint8_t g = (rgb >> 8) & 0x0000ff;
+                uint8_t b = (rgb) & 0x0000ff;
+                
+                // 그레이스케일로 변환 (표준 공식 사용)
+                pointI.intensity = 0.299f*r + 0.587f*g + 0.114f*b;
+                
+                laserCloudIn->push_back(pointI);
+            }
+        } else {
+            ROS_ERROR("Point cloud does not have intensity or color information!");
+            ros::shutdown();
+        }
+        
+        // NaN 포인트 제거
+        std::vector<int> indices;
+        pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
+        
+        // ring 채널 사용 여부 (ML-X는 사용하지 않을 가능성이 높음)
+        if (useCloudRing == true){
+            pcl::fromROSMsg(*laserCloudMsg, *laserCloudInRing);
+            if (laserCloudInRing->is_dense == false) {
+                ROS_ERROR("Point cloud is not in dense format, please remove NaN points first!");
+                ros::shutdown();
+            }  
+        }
+    }
+
+
+	/*
     void copyPointCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg){
 
         cloudHeader = laserCloudMsg->header;
@@ -177,8 +239,14 @@ public:
             }  
         }
     }
-    
+	*/  
     void cloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg){
+		static int count = 0;
+		if(count++ % 10 == 0){
+			ROS_INFO("Received point cloud: %u x %u points, frame_id: %s", 
+					laserCloudMsg->width, laserCloudMsg->height, 
+					laserCloudMsg->header.frame_id.c_str());
+		}
 
         // 1. Convert ros message to pcl point cloud
         copyPointCloud(laserCloudMsg);
@@ -335,8 +403,8 @@ public:
                     }
                     // majority of ground points are skipped
                     if (groundMat.at<int8_t>(i,j) == 1){
-                        if (j%5!=0 && j>5 && j<Horizon_SCAN-5)
-                            continue;
+                       // if (j%5!=0 && j>5 && j<Horizon_SCAN-5)
+                       //     continue;
                     }
                     // mark ground points so they will not be considered as edge features later
                     segMsg.segmentedCloudGroundFlag[sizeOfSegCloud] = (groundMat.at<int8_t>(i,j) == 1);
@@ -469,39 +537,39 @@ public:
 
         pcl::toROSMsg(*outlierCloud, laserCloudTemp);
         laserCloudTemp.header.stamp = cloudHeader.stamp;
-        laserCloudTemp.header.frame_id = "base_link";
+        laserCloudTemp.header.frame_id = "imu_link";
         pubOutlierCloud.publish(laserCloudTemp);
         // segmented cloud with ground
         pcl::toROSMsg(*segmentedCloud, laserCloudTemp);
         laserCloudTemp.header.stamp = cloudHeader.stamp;
-        laserCloudTemp.header.frame_id = "base_link";
+        laserCloudTemp.header.frame_id = "imu_link";
         pubSegmentedCloud.publish(laserCloudTemp);
         // projected full cloud
         if (pubFullCloud.getNumSubscribers() != 0){
             pcl::toROSMsg(*fullCloud, laserCloudTemp);
             laserCloudTemp.header.stamp = cloudHeader.stamp;
-            laserCloudTemp.header.frame_id = "base_link";
+            laserCloudTemp.header.frame_id = "imu_link";
             pubFullCloud.publish(laserCloudTemp);
         }
         // original dense ground cloud
         if (pubGroundCloud.getNumSubscribers() != 0){
             pcl::toROSMsg(*groundCloud, laserCloudTemp);
             laserCloudTemp.header.stamp = cloudHeader.stamp;
-            laserCloudTemp.header.frame_id = "base_link";
+            laserCloudTemp.header.frame_id = "imu_link";
             pubGroundCloud.publish(laserCloudTemp);
         }
         // segmented cloud without ground
         if (pubSegmentedCloudPure.getNumSubscribers() != 0){
             pcl::toROSMsg(*segmentedCloudPure, laserCloudTemp);
             laserCloudTemp.header.stamp = cloudHeader.stamp;
-            laserCloudTemp.header.frame_id = "base_link";
+            laserCloudTemp.header.frame_id = "imu_link";
             pubSegmentedCloudPure.publish(laserCloudTemp);
         }
         // projected full cloud info
         if (pubFullInfoCloud.getNumSubscribers() != 0){
             pcl::toROSMsg(*fullInfoCloud, laserCloudTemp);
             laserCloudTemp.header.stamp = cloudHeader.stamp;
-            laserCloudTemp.header.frame_id = "base_link";
+            laserCloudTemp.header.frame_id = "imu_link";
             pubFullInfoCloud.publish(laserCloudTemp);
         }
     }
